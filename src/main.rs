@@ -39,16 +39,23 @@ fn handle_connection(stream: TcpStream) -> Result<()> {
 
     let request = parse_request(&mut reader)?;
 
-    let resp = match request.path {
-        path if path.starts_with("/echo/") => {
-            let content = path.split('/').last().unwrap_or("");
-            Response::new(200, HashMap::default(), Some(content.to_string()))
+    let resp = if request.path.starts_with("/echo") {
+        let content = request.path.split('/').last().unwrap_or("");
+        Response::new(200, HashMap::default(), Some(content.to_string()))
+    } else if request.path == "/" {
+        Response::new(200, HashMap::default(), None)
+    } else if request.path == "/user-agent" {
+        if let Some(user_agent) = request.headers.get("User-Agent") {
+            println!("{user_agent}");
+            Response::new(200, HashMap::default(), Some(user_agent.to_owned()))
+        } else {
+            Response::new(400, HashMap::default(), None)
         }
-        path if path == "/" => Response::new(200, HashMap::default(), None),
-        _ => Response::new(404, HashMap::default(), None),
+    } else {
+        Response::new(404, HashMap::default(), None)
     };
 
-    println!("response: {:?}", resp.as_string());
+    println!("{:?}", resp.as_string());
 
     writer.write_all(resp.as_string().as_bytes())?;
 
