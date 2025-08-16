@@ -3,6 +3,7 @@ use std::{
     collections::HashMap,
     io::{BufReader, BufWriter, Write},
     net::{TcpListener, TcpStream},
+    thread,
 };
 
 use crate::request::parse_request;
@@ -17,7 +18,9 @@ fn main() -> Result<()> {
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                handle_connection(stream)?;
+                thread::spawn(|| {
+                    handle_connection(stream).unwrap();
+                });
             }
             Err(e) => {
                 println!("error: {}", e);
@@ -54,8 +57,6 @@ fn handle_connection(stream: TcpStream) -> Result<()> {
     } else {
         Response::new(404, HashMap::default(), None)
     };
-
-    println!("{:?}", resp.as_string());
 
     writer.write_all(resp.as_string().as_bytes())?;
 
