@@ -1,18 +1,23 @@
 use anyhow::Result;
+use clap::Parser;
 use std::{
     collections::HashMap,
     io::{BufReader, BufWriter, Write},
     net::{TcpListener, TcpStream},
 };
 
+use crate::args::Args;
 use crate::request::parse_request;
 use crate::response::Response;
 use codecrafters_http_server::ThreadPool;
 
+pub mod args;
 pub mod request;
 pub mod response;
 
 fn main() -> Result<()> {
+    let _ = Args::parse();
+
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
     let pool = ThreadPool::new(4);
 
