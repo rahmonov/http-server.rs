@@ -3,29 +3,25 @@ use std::{
     collections::HashMap,
     io::{BufReader, BufWriter, Write},
     net::{TcpListener, TcpStream},
-    thread,
 };
 
 use crate::request::parse_request;
 use crate::response::Response;
+use codecrafters_http_server::ThreadPool;
 
 pub mod request;
 pub mod response;
 
 fn main() -> Result<()> {
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
+    let pool = ThreadPool::new(4);
 
     for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                thread::spawn(|| {
-                    handle_connection(stream).unwrap();
-                });
-            }
-            Err(e) => {
-                println!("error: {}", e);
-            }
-        }
+        let stream = stream?;
+
+        pool.execute(|| {
+            handle_connection(stream).unwrap();
+        });
     }
 
     Ok(())
