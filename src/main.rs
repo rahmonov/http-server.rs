@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use std::{
     collections::HashMap,
+    fs,
     io::{BufReader, BufWriter, Write},
     net::{TcpListener, TcpStream},
 };
@@ -16,24 +17,27 @@ pub mod request;
 pub mod response;
 
 fn main() -> Result<()> {
-    let _ = Args::parse();
+    let args = Args::parse();
 
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
     let pool = ThreadPool::new(4);
 
     for stream in listener.incoming() {
         let stream = stream?;
+        let args = args.clone();
 
-        pool.execute(|| {
-            handle_connection(stream).unwrap();
+        pool.execute(move || {
+            handle_connection(stream, &args).unwrap();
         });
     }
 
     Ok(())
 }
 
-fn handle_connection(stream: TcpStream) -> Result<()> {
+fn handle_connection(stream: TcpStream, args: &Args) -> Result<()> {
     println!("Handling a connection...");
+
+    let file_dir = args.directory.as_deref().unwrap_or("");
 
     let read_stream = stream.try_clone()?;
     let write_stream = stream;
@@ -50,10 +54,26 @@ fn handle_connection(stream: TcpStream) -> Result<()> {
         Response::new(200, HashMap::default(), None)
     } else if request.path == "/user-agent" {
         if let Some(user_agent) = request.headers.get("User-Agent") {
-            println!("{user_agent}");
             Response::new(200, HashMap::default(), Some(user_agent.to_owned()))
         } else {
             Response::new(400, HashMap::default(), None)
+        }
+    } else if request.path.starts_with("/files") {
+        if let Ok(content) = fs::read(format!(
+            "{}{}",
+            file_dir,
+            request.path.trim_start_matches("/files/")
+        )) {
+            Response::new(
+                200,
+                HashMap::from([(
+                    "Content-Type".to_string(),
+                    "application/octet-stream".to_string(),
+                )]),
+                Some(String::from_utf8(content)?),
+            )
+        } else {
+            Response::new(404, HashMap::default(), None)
         }
     } else {
         Response::new(404, HashMap::default(), None)

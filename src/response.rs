@@ -11,7 +11,10 @@ impl Response {
     pub fn new(code: i32, mut headers: HashMap<String, String>, content: Option<String>) -> Self {
         if let Some(c) = &content {
             headers.insert("Content-Length".to_string(), c.len().to_string());
-            headers.insert("Content-Type".to_string(), "text/plain".to_string());
+
+            if !headers.contains_key("Content-Type") {
+                headers.insert("Content-Type".to_string(), "text/plain".to_string());
+            }
         }
 
         Self {
