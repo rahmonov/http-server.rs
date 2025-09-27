@@ -48,7 +48,7 @@ fn handle_connection(stream: TcpStream, args: &Args) -> Result<()> {
 
     let request = parse_request(&mut reader)?;
 
-    let resp = if request.path.starts_with("/echo") {
+    let mut resp = if request.path.starts_with("/echo") {
         handle_echo(&request)
     } else if request.path == "/" {
         handle_home(&request)
@@ -59,6 +59,13 @@ fn handle_connection(stream: TcpStream, args: &Args) -> Result<()> {
     } else {
         Response::new(404, HashMap::default(), None)
     };
+
+    if let Some(accept_encoding) = request.headers.get("Accept-Encoding") {
+        if accept_encoding.contains("gzip") {
+            resp.headers
+                .insert("Content-Encoding".to_string(), "gzip".to_string());
+        }
+    }
 
     writer.write_all(resp.as_string().as_bytes())?;
 

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 #[derive(Debug)]
 pub struct Response {
     code: i32,
-    headers: HashMap<String, String>,
+    pub headers: HashMap<String, String>,
     content: Option<String>,
 }
 
