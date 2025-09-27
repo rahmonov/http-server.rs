@@ -48,6 +48,7 @@ impl Response {
     fn get_reason(&self) -> String {
         let reason = match self.code {
             200 => "OK",
+            201 => "Created",
             400 => "Bad Request",
             404 => "Not Found",
             _ => "Invalid Reason",

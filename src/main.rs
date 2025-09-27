@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use std::{
     collections::HashMap,
-    fs,
+    fs::{self, File},
     io::{BufReader, BufWriter, Write},
     net::{TcpListener, TcpStream},
 };
@@ -59,21 +59,25 @@ fn handle_connection(stream: TcpStream, args: &Args) -> Result<()> {
             Response::new(400, HashMap::default(), None)
         }
     } else if request.path.starts_with("/files") {
-        if let Ok(content) = fs::read(format!(
-            "{}{}",
-            file_dir,
-            request.path.trim_start_matches("/files/")
-        )) {
-            Response::new(
-                200,
-                HashMap::from([(
-                    "Content-Type".to_string(),
-                    "application/octet-stream".to_string(),
-                )]),
-                Some(String::from_utf8(content)?),
-            )
+        let file_path = format!("{}{}", file_dir, request.path.trim_start_matches("/files"));
+
+        if request.method == "GET" {
+            if let Ok(content) = fs::read(file_path) {
+                Response::new(
+                    200,
+                    HashMap::from([(
+                        "Content-Type".to_string(),
+                        "application/octet-stream".to_string(),
+                    )]),
+                    Some(String::from_utf8(content)?),
+                )
+            } else {
+                Response::new(404, HashMap::default(), None)
+            }
         } else {
-            Response::new(404, HashMap::default(), None)
+            let mut file = File::create(file_path)?;
+            file.write_all(&request.body)?;
+            Response::new(201, HashMap::default(), None)
         }
     } else {
         Response::new(404, HashMap::default(), None)

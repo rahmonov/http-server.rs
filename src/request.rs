@@ -1,6 +1,6 @@
 use anyhow::Result;
 use std::collections::HashMap;
-use std::io::BufReader;
+use std::io::{BufReader, Read};
 use std::{io::BufRead, net::TcpStream};
 
 #[derive(Debug)]
@@ -8,14 +8,21 @@ pub struct Request {
     pub method: String,
     pub path: String,
     pub headers: HashMap<String, String>,
+    pub body: Vec<u8>,
 }
 
 impl Request {
-    pub fn new(method: String, path: String, headers: HashMap<String, String>) -> Self {
+    pub fn new(
+        method: String,
+        path: String,
+        headers: HashMap<String, String>,
+        body: Vec<u8>,
+    ) -> Self {
         Request {
             method,
             path,
             headers,
+            body,
         }
     }
 }
@@ -51,9 +58,30 @@ pub fn parse_request(reader: &mut BufReader<TcpStream>) -> Result<Request> {
         }
     }
 
-    Ok(Request::new(
-        method.to_string(),
-        request_path.to_string(),
-        headers,
-    ))
+    // it means there is request body
+    if let Some(content_length) = headers.get("Content-Length") {
+        if let Ok(buf_len) = content_length.parse::<usize>() {
+            let mut buffer = vec![0u8; buf_len];
+
+            reader.read_exact(&mut buffer)?;
+
+            return Ok(Request::new(
+                method.to_string(),
+                request_path.to_string(),
+                headers,
+                buffer,
+            ));
+        } else {
+            return Err(anyhow::anyhow!(
+                "Malformed Content-Length header: {content_length}"
+            ));
+        }
+    } else {
+        Ok(Request::new(
+            method.to_string(),
+            request_path.to_string(),
+            headers,
+            Vec::new(),
+        ))
+    }
 }
