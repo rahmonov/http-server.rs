@@ -4,5 +4,5 @@ use crate::{request::Request, response::Response};
 
 pub fn handle_echo(request: &Request) -> Response {
     let content = request.path.split('/').last().unwrap_or("");
-    Response::new(200, HashMap::default(), Some(content.to_string()))
+    Response::new(200, HashMap::default(), content.as_bytes().to_owned())
 }

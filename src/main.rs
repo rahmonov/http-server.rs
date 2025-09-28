@@ -1,5 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use std::{
     collections::HashMap,
     io::{BufReader, BufWriter, Write},
@@ -57,17 +59,26 @@ fn handle_connection(stream: TcpStream, args: &Args) -> Result<()> {
     } else if request.path.starts_with("/files") {
         handle_file(&request, args)?
     } else {
-        Response::new(404, HashMap::default(), None)
+        Response::new(404, HashMap::default(), Vec::new())
     };
 
+    // should encode?
     if let Some(accept_encoding) = request.headers.get("Accept-Encoding") {
         if accept_encoding.contains("gzip") {
             resp.headers
                 .insert("Content-Encoding".to_string(), "gzip".to_string());
+
+            if !resp.content.is_empty() {
+                let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::default());
+                gzip_encoder.write_all(&resp.content)?;
+                resp.content = gzip_encoder.finish()?;
+                resp.headers
+                    .insert("Content-Length".to_string(), resp.content.len().to_string());
+            }
         }
     }
 
-    writer.write_all(resp.as_string().as_bytes())?;
+    writer.write_all(&resp.format())?;
 
     Ok(())
 }

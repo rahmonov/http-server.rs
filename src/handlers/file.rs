@@ -19,15 +19,15 @@ pub fn handle_file(request: &Request, args: &Args) -> Result<Response> {
                     "Content-Type".to_string(),
                     "application/octet-stream".to_string(),
                 )]),
-                Some(String::from_utf8(content)?),
+                content,
             )
         } else {
-            Response::new(404, HashMap::default(), None)
+            Response::new(404, HashMap::default(), Vec::new())
         }
     } else {
         let mut file = File::create(file_path)?;
         file.write_all(&request.body)?;
-        Response::new(201, HashMap::default(), None)
+        Response::new(201, HashMap::default(), Vec::new())
     };
 
     Ok(res)

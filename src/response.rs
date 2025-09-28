@@ -4,17 +4,15 @@ use std::collections::HashMap;
 pub struct Response {
     code: i32,
     pub headers: HashMap<String, String>,
-    content: Option<String>,
+    pub content: Vec<u8>,
 }
 
 impl Response {
-    pub fn new(code: i32, mut headers: HashMap<String, String>, content: Option<String>) -> Self {
-        if let Some(c) = &content {
-            headers.insert("Content-Length".to_string(), c.len().to_string());
+    pub fn new(code: i32, mut headers: HashMap<String, String>, content: Vec<u8>) -> Self {
+        headers.insert("Content-Length".to_string(), content.len().to_string());
 
-            if !headers.contains_key("Content-Type") {
-                headers.insert("Content-Type".to_string(), "text/plain".to_string());
-            }
+        if !headers.contains_key("Content-Type") {
+            headers.insert("Content-Type".to_string(), "text/plain".to_string());
         }
 
         Self {
@@ -24,7 +22,7 @@ impl Response {
         }
     }
 
-    pub fn as_string(&self) -> String {
+    pub fn format(&self) -> Vec<u8> {
         // status line
         let mut resp = format!("HTTP/1.1 {} {}\r\n", self.code, self.get_reason());
 
@@ -37,12 +35,11 @@ impl Response {
             .join("\r\n");
         resp.push_str(&format!("{headers}\r\n\r\n"));
 
-        // content
-        if let Some(content) = &self.content {
-            resp.push_str(content);
-        }
+        let mut bytes = resp.into_bytes();
 
-        resp.to_string()
+        bytes.extend_from_slice(&self.content);
+
+        bytes
     }
 
     fn get_reason(&self) -> String {
