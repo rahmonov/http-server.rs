@@ -42,43 +42,59 @@ fn main() -> Result<()> {
 fn handle_connection(stream: TcpStream, args: &Args) -> Result<()> {
     println!("Handling a connection...");
 
-    let read_stream = stream.try_clone()?;
-    let write_stream = stream;
+    loop {
+        let mut read_stream = BufReader::new(stream.try_clone()?);
+        let mut write_stream = BufWriter::new(stream.try_clone()?);
 
-    let mut reader = BufReader::new(read_stream);
-    let mut writer = BufWriter::new(write_stream);
+        let request = match parse_request(&mut read_stream) {
+            Ok(req) => req,
+            Err(e) => {
+                eprintln!("Client disconnected or invalid request: {:?}", e);
+                break;
+            }
+        };
 
-    let request = parse_request(&mut reader)?;
+        let mut resp = if request.path.starts_with("/echo") {
+            handle_echo(&request)
+        } else if request.path == "/" {
+            handle_home(&request)
+        } else if request.path == "/user-agent" {
+            handle_user_agent(&request)
+        } else if request.path.starts_with("/files") {
+            handle_file(&request, args)?
+        } else {
+            Response::new(404, HashMap::default(), Vec::new())
+        };
 
-    let mut resp = if request.path.starts_with("/echo") {
-        handle_echo(&request)
-    } else if request.path == "/" {
-        handle_home(&request)
-    } else if request.path == "/user-agent" {
-        handle_user_agent(&request)
-    } else if request.path.starts_with("/files") {
-        handle_file(&request, args)?
-    } else {
-        Response::new(404, HashMap::default(), Vec::new())
-    };
-
-    // should encode?
-    if let Some(accept_encoding) = request.headers.get("Accept-Encoding") {
-        if accept_encoding.contains("gzip") {
-            resp.headers
-                .insert("Content-Encoding".to_string(), "gzip".to_string());
-
-            if !resp.content.is_empty() {
-                let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::default());
-                gzip_encoder.write_all(&resp.content)?;
-                resp.content = gzip_encoder.finish()?;
+        // should encode?
+        if let Some(accept_encoding) = request.headers.get("Accept-Encoding") {
+            if accept_encoding.contains("gzip") {
                 resp.headers
-                    .insert("Content-Length".to_string(), resp.content.len().to_string());
+                    .insert("Content-Encoding".to_string(), "gzip".to_string());
+
+                if !resp.content.is_empty() {
+                    let mut gzip_encoder = GzEncoder::new(Vec::new(), Compression::default());
+                    gzip_encoder.write_all(&resp.content)?;
+                    resp.content = gzip_encoder.finish()?;
+                    resp.headers
+                        .insert("Content-Length".to_string(), resp.content.len().to_string());
+                }
             }
         }
-    }
 
-    writer.write_all(&resp.format())?;
+        // do I close the connection?
+        if request.headers.get("Connection").map(|s| s.to_lowercase()) == Some("close".into()) {
+            resp.headers.insert("Connection".into(), "clone".into());
+            write_stream.write(&resp.format())?;
+            write_stream.flush()?;
+            break; // client requested to close the connection
+        } else {
+            resp.headers
+                .insert("Connection".into(), "keep-alive".into());
+            write_stream.write(&resp.format())?;
+            write_stream.flush()?;
+        }
+    }
 
     Ok(())
 }
