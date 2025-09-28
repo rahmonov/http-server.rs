@@ -84,7 +84,7 @@ fn handle_connection(stream: TcpStream, args: &Args) -> Result<()> {
 
         // do I close the connection?
         if request.headers.get("Connection").map(|s| s.to_lowercase()) == Some("close".into()) {
-            resp.headers.insert("Connection".into(), "clone".into());
+            resp.headers.insert("Connection".into(), "close".into());
             write_stream.write(&resp.format())?;
             write_stream.flush()?;
             break; // client requested to close the connection
